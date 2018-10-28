@@ -1,6 +1,16 @@
 from socket import *
 import json
 import time
+import threading
+
+host = '127.0.0.1'
+port = 12315
+bufSize = 1024
+addr = (host, port)
+exit_sign = False
+udpClient = socket(AF_INET, SOCK_DGRAM)
+udpClient.bind(('127.0.0.1', 57070))
+
 
 _name = ''
 temp_name = ''
@@ -11,6 +21,8 @@ commands = [
     'exit',
     'logout'
 ]
+
+rcv = []
 
 
 def deal(msg):
@@ -126,16 +138,12 @@ def deal_rcv(rcv):
         return 1
 
 
-if __name__ == '__main__':
-    host = '127.0.0.1'
-    port = 12315
-    bufSize = 1024
-    addr = (host, port)
-
-    udpClient = socket(AF_INET, SOCK_DGRAM)
-    udpClient.bind(('127.0.0.1', 57070))
+def inin():
+    global udpClient
     while True:
         msg = input('a')
+        if len(msg) == 0:
+            continue
         text = deal(msg)
         if text == 0:
             print('先登录')
@@ -154,14 +162,41 @@ if __name__ == '__main__':
             continue
         if text == 'exit':
             break
+        try:
+            udpClient.sendto(text.encode('utf-8'), addr)
+        except BaseException as e:
+            print('请重新发送')
+            continue
 
-        udpClient.sendto(text.encode('utf-8'), addr)
-        rcv, new_addr = udpClient.recvfrom(bufSize)
 
-        status = deal_rcv(rcv.decode('utf-8'))
+def user_recv():
+    global udpClient
+    while True:
+        try:
+            recv, new_addr = udpClient.recvfrom(bufSize)
+            rcv.append(recv.decode('utf-8'))
+        except:
+            pass
         # if status != 'OK':
         #     continue
 
 
+def user_deal():
+    while True:
+        try:
+            status = deal_rcv(rcv.pop(0))
+        except Exception as e:
+            continue
+
+
+if __name__ == '__main__':
+
+    user_in = threading.Thread(target=inin, args=())
+    user_d = threading.Thread(target=user_deal, args=())
+    user_r = threading.Thread(target=user_recv, args=())
+
+    user_in.start()
+    user_d.start()
+    user_r.start()
 
     udpClient.close()
